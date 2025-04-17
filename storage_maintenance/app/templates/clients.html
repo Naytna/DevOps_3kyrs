@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Manage Clients{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-body">
+        <h2 class="card-title mb-4">Manage Clients</h2>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Add New Client</h5>
+                        <form method="POST">
+                            {{ form.hidden_tag() }}
+                            <div class="mb-3">
+                                {{ form.name.label(class="form-label") }}
+                                {{ form.name(class="form-control") }}
+                            </div>
+                            <div class="mb-3">
+                                {{ form.description.label(class="form-label") }}
+                                {{ form.description(class="form-control") }}
+                            </div>
+                            <div class="mb-3">
+                                {{ form.address.label(class="form-label") }}
+                                {{ form.address(class="form-control") }}
+                            </div>
+                            <div class="mb-3">
+                                {{ form.contacts.label(class="form-label") }}
+                                {{ form.contacts(class="form-control") }}
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Add Client</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Contacts</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in clients %}
+                        <tr>
+                            <td>{{ client.name }}</td>
+                            <td>{{ client.address|truncate(30) }}</td>
+                            <td>{{ client.contacts }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('delete_client', id=client.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                        onclick="return confirm('Delete this client?')">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Grant Access{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-body">
+        <h2 class="card-title mb-4">Grant Department Access</h2>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.user.label(class="form-label") }}
+                        {{ form.user(class="form-select") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.department.label(class="form-label") }}
+                        {{ form.department(class="form-select") }}
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Grant Access</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h5>Existing Access Permissions</h5>
+            <table class="table table-sm">
+                {% for access in access_list %}
+                <tr>
+                    <td>{{ access.user.username }}</td>
+                    <td>{{ access.department.name }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('revoke_access', id=access.id) }}">
+                            <button class="btn btn-sm btn-outline-danger">Revoke</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
