@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  web:
+    build: ./storage_maintenance/app
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./storage_maintenance/app/instance:/app/instance
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
