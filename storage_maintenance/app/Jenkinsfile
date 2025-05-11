@@ -38,8 +38,28 @@ pipeline {
 
         stage('Clean Up') {
             steps {
-                sh 'docker rmi $DOCKER_IMAGE:$BUILD_NUMBER'
-                sh 'docker rmi $DOCKER_IMAGE:latest'
+                sh 'docker rmi $DOCKER_IMAGE:$BUILD_NUMBER || true'
+                sh 'docker rmi $DOCKER_IMAGE:latest || true'
+            }
+        }
+
+        stage('Deploy to Stage') {
+            steps {
+                sshagent(credentials: ['stage_ssh_key']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no serega@5.101.69.100 '
+                        if [ ! -d ~/app ]; then
+                            git clone https://github.com/Naytna/DevOps_3kyrs.git ~/app
+                        else
+                            cd ~/app && git pull
+                        fi &&
+                        cd ~/app &&
+                        docker compose pull &&
+                        docker compose down &&
+                        docker compose up -d
+                    '
+                    """
+                }
             }
         }
     }
@@ -50,4 +70,3 @@ pipeline {
         }
     }
 }
-
