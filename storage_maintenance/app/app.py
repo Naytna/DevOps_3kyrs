@@ -159,6 +159,10 @@ def logout():
 def dashboard():
     return render_template('dashboard.html')
 
+@app.route('/health')
+def health():
+    return jsonify(status='OK')
+
 # Админские маршруты
 @app.route('/admin/departments', methods=['GET', 'POST'])
 @admin_required
