@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         DOCKER_HUB_CREDS = credentials('dockerhub_credentials')
-        DOCKER_IMAGE = "smnvsr/flask-storage-app"
-        GIT_CREDS = credentials('github_sshkey')
+        DOCKER_IMAGE     = "smnvsr/flask-storage-app"
+        GIT_CREDS        = credentials('github_sshkey')
     }
 
     stages {
@@ -18,6 +18,48 @@ pipeline {
                         credentialsId: 'github_sshkey'
                     ]]
                 ])
+            }
+        }
+
+        stage('Code Quality Analysis (Pylint)') {
+            steps {
+                sh '''
+                   # install system pylint and jq if needed
+                   apt-get update -qq
+                   apt-get install -y -qq python3-pylint jq || true
+
+                   # run pylint with JSON output, capture blocker-level issues (error/fatal)
+                   pylint storage_maintenance/app --exit-zero --output-format=json > pylint_report.json || true
+                   ERR=$(jq '[ .[] | select(.type=="error" or .type=="fatal") ] | length' pylint_report.json)
+                   if [ "$ERR" -gt 0 ]; then
+                     echo "🚫 Pylint blocker issues found: $ERR"
+                     exit 1
+                   fi
+                '''
+            }
+        }
+
+        stage('Secrets Scan (TruffleHog)') {
+            steps {
+                sh '''
+                   # install wget and jq
+                   apt-get update -qq
+                   apt-get install -y -qq wget jq || true
+
+                   # download trufflehog if not present
+                   if [ ! -f /tmp/trufflehog ]; then
+                     wget -q -O /tmp/trufflehog https://github.com/trufflesecurity/trufflehog/releases/download/v3.16.0/trufflehog_linux_amd64
+                     chmod +x /tmp/trufflehog
+                   fi
+
+                   # scan codebase for secrets
+                   /tmp/trufflehog filesystem storage_maintenance/app --json > trufflehog.json || true
+                   FOUND=$(jq '. | length' trufflehog.json)
+                   if [ "$FOUND" -gt 0 ]; then
+                     echo "🔑 Potential secrets detected: $FOUND"
+                     exit 1
+                   fi
+                '''
             }
         }
 
@@ -39,26 +81,25 @@ pipeline {
         stage('Clean Up') {
             steps {
                 sh 'docker rmi $DOCKER_IMAGE:$BUILD_NUMBER || true'
-                sh 'docker rmi $DOCKER_IMAGE:latest || true'
+                sh 'docker rmi $DOCKER_IMAGE:latest     || true'
             }
         }
 
         stage('Deploy to Stage') {
-	  when { branch 'dev' }
-	  steps {
-	    sshagent(credentials: ['stage_ssh_key']) {
-	      sh """
-		 ssh -o StrictHostKeyChecking=no serega@5.101.69.100 '
-	cd ~/app &&
-       docker-compose pull &&
-        docker-compose down &&
-        docker-compose up -d
-      '
-      """
-    }
-  }
-}
-
+            when { branch 'dev' }
+            steps {
+                sshagent(credentials: ['stage_ssh_key']) {
+                    sh """
+                       ssh -o StrictHostKeyChecking=no serega@5.101.69.100 '
+                         cd ~/app &&
+                         docker-compose pull &&
+                         docker-compose down &&
+                         docker-compose up -d
+                       '
+                    """
+                }
+            }
+        }
     }
 
     post {
@@ -67,3 +108,4 @@ pipeline {
         }
     }
 }
+
