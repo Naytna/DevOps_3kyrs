@@ -28,9 +28,14 @@ pipeline {
                    . venv/bin/activate
                    pip install --no-cache-dir pylint
 
-                   # Запускаем только по .py-файлам и отключаем F0010
-                   pylint --disable=F0010 storage_maintenance/app/*.py --exit-zero --output-format=json > pylint_report.json || true
+                   # Запускаем Pylint по файлам и сохраняем JSON
+                   pylint --disable=F0010 storage_maintenance/app/*.py \
+                          --exit-zero --output-format=json > pylint_report.json || true
 
+                   # Выводим весь human-readable отчёт в консоль
+                   pylint --disable=F0010 storage_maintenance/app/*.py || true
+
+                   # Проверяем число ошибок/фаталов и фэйлим, если >0
                    python3 - <<'PYCODE'
 import json, sys
 data = json.load(open('pylint_report.json'))
@@ -104,6 +109,8 @@ PYCODE
 
     post {
         always {
+            // Сохраняем отчёты как артефакты
+            archiveArtifacts artifacts: 'pylint_report.json, trufflehog.json', fingerprint: true
             sh 'docker logout'
         }
     }
