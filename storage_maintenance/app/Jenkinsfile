@@ -24,17 +24,25 @@ pipeline {
         stage('Code Quality Analysis (Pylint)') {
             steps {
                 sh '''
-                   # install system pylint and jq if needed
-                   apt-get update -qq
-                   apt-get install -y -qq python3-pylint jq || true
+                   # создаём виртуальное окружение
+                   python3 -m venv venv
+                   . venv/bin/activate
 
-                   # run pylint with JSON output, capture blocker-level issues (error/fatal)
+                   # ставим pylint
+                   pip install --no-cache-dir pylint
+
+                   # запускаем анализ, выкидываем все результаты в JSON
                    pylint storage_maintenance/app --exit-zero --output-format=json > pylint_report.json || true
-                   ERR=$(jq '[ .[] | select(.type=="error" or .type=="fatal") ] | length' pylint_report.json)
-                   if [ "$ERR" -gt 0 ]; then
-                     echo "🚫 Pylint blocker issues found: $ERR"
-                     exit 1
-                   fi
+
+                   # парсим JSON и фэйл при error/fatal
+                   python3 - <<'PYCODE'
+import json, sys
+data = json.load(open('pylint_report.json'))
+errs = [d for d in data if d.get('type') in ('error','fatal')]
+if errs:
+    print(f"🚫 Pylint blocker issues found: {len(errs)}")
+    sys.exit(1)
+PYCODE
                 '''
             }
         }
@@ -42,17 +50,13 @@ pipeline {
         stage('Secrets Scan (TruffleHog)') {
             steps {
                 sh '''
-                   # install wget and jq
-                   apt-get update -qq
-                   apt-get install -y -qq wget jq || true
+                   apt-get update -qq && apt-get install -y -qq wget jq || true
 
-                   # download trufflehog if not present
                    if [ ! -f /tmp/trufflehog ]; then
                      wget -q -O /tmp/trufflehog https://github.com/trufflesecurity/trufflehog/releases/download/v3.16.0/trufflehog_linux_amd64
                      chmod +x /tmp/trufflehog
                    fi
 
-                   # scan codebase for secrets
                    /tmp/trufflehog filesystem storage_maintenance/app --json > trufflehog.json || true
                    FOUND=$(jq '. | length' trufflehog.json)
                    if [ "$FOUND" -gt 0 ]; then
