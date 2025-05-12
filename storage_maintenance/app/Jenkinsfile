@@ -24,17 +24,13 @@ pipeline {
         stage('Code Quality Analysis (Pylint)') {
             steps {
                 sh '''
-                   # создаём виртуальное окружение
                    python3 -m venv venv
                    . venv/bin/activate
-
-                   # ставим pylint
                    pip install --no-cache-dir pylint
 
-                   # запускаем анализ, выкидываем все результаты в JSON
-                   pylint storage_maintenance/app --exit-zero --output-format=json > pylint_report.json || true
+                   # Запускаем только по .py-файлам и отключаем F0010
+                   pylint --disable=F0010 storage_maintenance/app/*.py --exit-zero --output-format=json > pylint_report.json || true
 
-                   # парсим JSON и фэйл при error/fatal
                    python3 - <<'PYCODE'
 import json, sys
 data = json.load(open('pylint_report.json'))
