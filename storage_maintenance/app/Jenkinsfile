@@ -44,24 +44,21 @@ pipeline {
         }
 
         stage('Deploy to Stage') {
-            steps {
-                sshagent(credentials: ['stage_ssh_key']) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no serega@5.101.69.100 '
-                        if [ ! -d ~/app ]; then
-                            git clone https://github.com/Naytna/DevOps_3kyrs.git ~/app
-                        else
-                            cd ~/app && git pull
-                        fi &&
-                        cd ~/app &&
-                        docker-compose pull &&
-                        docker-compose down &&
-                        docker-compose up -d
-                    '
-                    """
-                }
-            }
-        }
+	  when { branch 'dev' }
+	  steps {
+	    sshagent(credentials: ['stage_ssh_key']) {
+	      sh """
+		 ssh -o StrictHostKeyChecking=no serega@5.101.69.100 '
+	cd ~/app &&
+       docker-compose pull &&
+        docker-compose down &&
+        docker-compose up -d
+      '
+      """
+    }
+  }
+}
+
     }
 
     post {
