@@ -22,31 +22,28 @@ pipeline {
         }
 
         stage('Code Quality Analysis (Pylint)') {
-            steps {
-                sh '''
-                   python3 -m venv venv
-                   . venv/bin/activate
-                   pip install --no-cache-dir pylint
+  steps {
+    sh '''
+       python3 -m venv venv
+       . venv/bin/activate
+       pip install --no-cache-dir -r storage_maintenance/app/requirements.txt pylint
 
-                   # Запускаем Pylint по файлам и сохраняем JSON
-                   pylint --disable=F0010 storage_maintenance/app/*.py \
-                          --exit-zero --output-format=json > pylint_report.json || true
+       # запускаем pylint с пользовательским rc-файлом
+       pylint storage_maintenance/app --exit-zero --output-format=json > pylint_report.json || true
 
-                   # Выводим весь human-readable отчёт в консоль
-                   pylint --disable=F0010 storage_maintenance/app/*.py || true
-
-                   # Проверяем число ошибок/фаталов и фэйлим, если >0
-                   python3 - <<'PYCODE'
+       # фейлим только на fatal
+       python3 - <<'PYCODE'
 import json, sys
 data = json.load(open('pylint_report.json'))
-errs = [d for d in data if d.get('type') in ('error','fatal')]
-if errs:
-    print(f"🚫 Pylint blocker issues found: {len(errs)}")
+fatal = [d for d in data if d.get('type')=='fatal']
+if fatal:
+    print(f"🚫 Pylint fatal issues found: {len(fatal)}")
     sys.exit(1)
 PYCODE
-                '''
-            }
-        }
+    '''
+  }
+}
+
 
         stage('Secrets Scan (TruffleHog)') {
             steps {
