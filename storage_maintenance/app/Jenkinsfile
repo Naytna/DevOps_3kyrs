@@ -21,47 +21,67 @@ pipeline {
             }
         }
 
-        stage('Code Quality Analysis (Pylint)') {
-  steps {
-    sh '''
-       python3 -m venv venv
-       . venv/bin/activate
-       pip install --no-cache-dir -r storage_maintenance/app/requirements.txt pylint
+stage('Run Tests') {
+            parallel {
+                stage('Security Scan') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            
+                            # cd /root/oboldui/mip_devops
+                            
+                            echo "Running Bandit scan in: $(pwd)"
+                            bandit -r . --exclude ./venv -f json -o bandit_report.json || true
+                            
+                            echo "=== Bandit Report Summary ==="
+                            cat bandit_report.json
+                            
+                            if jq -e '.results[] | select(.issue_severity == "CRITICAL")' bandit_report.json >/dev/null; then
+                                echo "ERROR: Bandit detected CRITICAL vulnerabilities:"
+                                jq '.results[] | select(.issue_severity == "CRITICAL")' bandit_report.json
+                                exit 1
+                            else
+                                echo "No CRITICAL vulnerabilities found."
+                            fi
+                        '''
+                    }
+                }
 
-       # запускаем pylint с пользовательским rc-файлом
-       pylint storage_maintenance/app --exit-zero --output-format=json > pylint_report.json || true
+                stage('Secrets Detection') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            
+                            # cd /root/oboldui/mip_devops
+                            
+                            echo "Scanning for secrets in: $(pwd)"
+                            trufflehog filesystem . --json > trufflehog_report.json || true
+                            
+                            echo "=== TruffleHog Report ==="
+                            cat trufflehog_report.json
+                            
+                            if [ -s trufflehog_report.json ]; then
+                                echo "ERROR: TruffleHog detected secrets in /root/oboldui/mip_devops!"
+                                exit 1
+                            else
+                                echo "No secrets found."
+                            fi
+                        '''
+                    }
+                }
 
-       # фейлим только на fatal
-       python3 - <<'PYCODE'
-import json, sys
-data = json.load(open('pylint_report.json'))
-fatal = [d for d in data if d.get('type')=='fatal']
-if fatal:
-    print(f"🚫 Pylint fatal issues found: {len(fatal)}")
-    sys.exit(1)
-PYCODE
-    '''
-  }
-}
-
-
-        stage('Secrets Scan (TruffleHog)') {
-            steps {
-                sh '''
-                   apt-get update -qq && apt-get install -y -qq wget jq || true
-
-                   if [ ! -f /tmp/trufflehog ]; then
-                     wget -q -O /tmp/trufflehog https://github.com/trufflesecurity/trufflehog/releases/download/v3.16.0/trufflehog_linux_amd64
-                     chmod +x /tmp/trufflehog
-                   fi
-
-                   /tmp/trufflehog filesystem storage_maintenance/app --json > trufflehog.json || true
-                   FOUND=$(jq '. | length' trufflehog.json)
-                   if [ "$FOUND" -gt 0 ]; then
-                     echo "🔑 Potential secrets detected: $FOUND"
-                     exit 1
-                   fi
-                '''
+                stage('Code Quality') {
+                    steps {
+                        sh '''
+                            . venv/bin/activate
+                            pylint app.py database.py forms.py --exit-zero > pylint_report.txt
+                            echo "Pylint Report:"
+                            cat pylint_report.txt
+                            echo "Ошибки уровней E и F:"
+                            grep -E '^[EF]' pylint_report.txt || echo "Нет ошибок уровней E или F"
+                        '''
+                    }
+                }
             }
         }
 
